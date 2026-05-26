@@ -102,25 +102,42 @@ class QtStandardTray(TrayImplementation):
         self.tray.setIcon(fallback_icon)
         self.menu = QMenu()
         self.tray.setContextMenu(self.menu)
+class QtStandardTray(TrayImplementation):
+    """标准的跨平台托盘，适用于 Windows / macOS 或不支持 AppIndicator 的桌面。"""
+    def __init__(self, app):
+        super().__init__()
+        self.app = app
+        self.tray = QSystemTrayIcon()
+        
+        fallback_icon = QIcon.fromTheme("emblem-default")
+        self.tray.setIcon(fallback_icon)
+        self.menu = QMenu()
+        self.tray.setContextMenu(self.menu)
         self.tray.show()
         self.actions = []
         
     def set_label(self, text: str):
-        # 传统系统托盘不支持动态文字，因此回退为使用 ToolTip 悬浮显示
         self.tray.setToolTip(text)
 
     def update_menu(self, items: list):
         self.menu.clear()
         self.actions.clear()
+        self._build_qt_menu(self.menu, items)
+
+    def _build_qt_menu(self, qt_menu, items):
         for item in items:
             if item == "separator":
-                self.menu.addSeparator()
+                qt_menu.addSeparator()
+            elif "submenu" in item:
+                submenu = QMenu(item["label"], qt_menu)
+                self._build_qt_menu(submenu, item["submenu"])
+                qt_menu.addMenu(submenu)
             else:
-                action = QAction(item["label"])
+                action = QAction(item["label"], qt_menu)
                 action.setEnabled(item.get("enabled", True))
                 # 捕获闭包中的变量
                 action.triggered.connect(lambda checked=False, aid=item["id"]: self.action_received.emit(aid))
-                self.menu.addAction(action)
+                qt_menu.addAction(action)
                 self.actions.append(action)
 
     def show_notification(self, title: str, msg: str):
@@ -163,12 +180,7 @@ class TrayManager(QObject):
         # 状态参数
         self.pomodoro_remaining = 0
         self.is_pomodoro = False
-        self.current_scroll_text = ""
-        self.scroll_index = 0
-        
-        # 长文本滚动引擎
-        self.scroll_timer = QTimer()
-        self.scroll_timer.timeout.connect(self.tick_scroll)
+        self.current_text = ""
         
         # 数据加载
         self.reload_data()
@@ -188,45 +200,83 @@ class TrayManager(QObject):
             self.open_new_task_dialog()
         elif action_id == "done":
             self.mark_current_task_done()
+        elif action_id == "abandon":
+            self.abandon_current_task()
+        elif action_id == "edit":
+            self.edit_current_task()
+        elif action_id.startswith("select_task_"):
+            task_id = action_id[len("select_task_"):]
+            self.select_task(task_id)
         elif action_id == "pomodoro":
             self.start_pomodoro()
         elif action_id == "quit":
             self.app.quit()
 
-    def update_menu_state(self, current_label: str, allow_done: bool, allow_pomodoro: bool):
+    def update_menu_state(self):
         """动态刷新右键菜单状态"""
+        task = self.scheduler.get_current()
+        active_tasks = Storage.load_tasks()
+
+        # Build 状态更新 submenu
+        status_submenu = [
+            {"id": "done", "label": "✅ 完成", "enabled": task is not None and not self.is_pomodoro},
+            {"id": "abandon", "label": "❌ 废弃", "enabled": task is not None and not self.is_pomodoro}
+        ]
+
+        # Build 任务列表 submenu
+        task_list_submenu = []
+        if active_tasks:
+            for t in active_tasks:
+                emoji = "🔴" if t.priority == "high" else "🟡" if t.priority == "medium" else "🟢"
+                prefix = "★ " if task and t.id == task.id else ""
+                task_list_submenu.append({
+                    "id": f"select_task_{t.id}",
+                    "label": f"{prefix}{emoji} {t.title}",
+                    "enabled": not self.is_pomodoro
+                })
+        else:
+            task_list_submenu.append({
+                "id": "no_tasks",
+                "label": "暂无待办任务",
+                "enabled": False
+            })
+
+        # Main items
         items = [
-            {"id": "current", "label": current_label, "enabled": False},
+            {
+                "id": "status_update",
+                "label": "🔄 状态更新",
+                "submenu": status_submenu,
+                "enabled": task is not None and not self.is_pomodoro
+            },
+            {
+                "id": "edit",
+                "label": "📝 编辑查看",
+                "enabled": task is not None and not self.is_pomodoro
+            },
+            {
+                "id": "task_list",
+                "label": "📋 任务列表",
+                "submenu": task_list_submenu,
+                "enabled": not self.is_pomodoro
+            },
             "separator",
-            {"id": "new", "label": "➕ 新建任务"},
-            {"id": "done", "label": "✅ 完成当前任务", "enabled": allow_done},
-            {"id": "pomodoro", "label": f"🍅 专注 {POMODORO_MINUTES} 分钟", "enabled": allow_pomodoro},
+            {"id": "new", "label": "➕ 新建任务", "enabled": not self.is_pomodoro},
+            {
+                "id": "pomodoro",
+                "label": f"🍅 专注 {POMODORO_MINUTES} 分钟" if not self.is_pomodoro else f"🍅 专注中 {self.pomodoro_remaining // 60:02d}:{self.pomodoro_remaining % 60:02d}",
+                "enabled": not self.is_pomodoro
+            },
             "separator",
             {"id": "quit", "label": "❌ 退出程序"}
         ]
         self.backend.update_menu(items)
 
     def set_display_text(self, text: str):
-        """渲染状态栏文本（支持超长文本的自动轮播截取）"""
-        if text != self.current_scroll_text:
-            self.current_scroll_text = text + "   " * 3  # 添加留白便于首尾相连
-            self.scroll_index = 0
-            
-            if len(self.current_scroll_text) > 15:
-                self.scroll_timer.start(500)
-            else:
-                self.scroll_timer.stop()
-                self.backend.set_label(text)
-
-    def tick_scroll(self):
-        """文本走马灯刷新帧"""
-        if not self.current_scroll_text:
-            return
-        
-        display = self.current_scroll_text[self.scroll_index:] + self.current_scroll_text[:self.scroll_index]
-        self.backend.set_label(display[:12]) # Linux 面板文字长度截取
-        
-        self.scroll_index = (self.scroll_index + 1) % len(self.current_scroll_text)
+        """渲染状态栏文本 (自适应宽度，不滚动)"""
+        if text != self.current_text:
+            self.current_text = text
+            self.backend.set_label(text)
 
     def reload_data(self):
         """重新载入磁盘任务并渲染"""
@@ -243,12 +293,28 @@ class TrayManager(QObject):
         if not task:
             text = "🎉 暂无待办事项"
             self.set_display_text(text)
-            self.update_menu_state(text, False, False)
         else:
             emoji = "🔴" if task.priority == "high" else "🟡" if task.priority == "medium" else "🟢"
             text = f"{emoji} {task.title}"
             self.set_display_text(text)
-            self.update_menu_state(text, True, True)
+        
+        self.update_menu_state()
+
+    def select_task(self, task_id):
+        """手动选择并切换至指定任务"""
+        target_idx = -1
+        for idx, t in enumerate(self.scheduler.queue):
+            if t.id == task_id:
+                target_idx = idx
+                break
+        if target_idx != -1:
+            self.scheduler.cursor = target_idx
+            task = self.scheduler.get_next()
+            if task:
+                emoji = "🔴" if task.priority == "high" else "🟡" if task.priority == "medium" else "🟢"
+                text = f"{emoji} {task.title}"
+                self.set_display_text(text)
+                self.update_menu_state()
 
     def start_pomodoro(self):
         """启用番茄钟模式"""
@@ -267,7 +333,7 @@ class TrayManager(QObject):
         text = f"🍅 专注中 {mins:02d}:{secs:02d}"
         
         self.set_display_text(text)
-        self.update_menu_state(text, False, False)
+        self.update_menu_state()
         
         if self.pomodoro_remaining <= 0:
             self.pomodoro_timer.stop()
@@ -329,6 +395,47 @@ class TrayManager(QObject):
         
         self.reload_data()
         self.backend.show_notification("任务完成", f"已斩杀: {task.title}")
+
+    def abandon_current_task(self):
+        """废弃当前任务的原子操作"""
+        task = self.scheduler.get_current()
+        if not task:
+            return
+            
+        Storage.archive_task(task, "ABANDONED")
+        
+        tasks = Storage.load_tasks()
+        tasks = [t for t in tasks if t.id != task.id]
+        Storage.save_tasks(tasks)
+        
+        self.reload_data()
+        self.backend.show_notification("任务废弃", f"已废弃: {task.title}")
+
+    def edit_current_task(self):
+        """编辑当前任务"""
+        task = self.scheduler.get_current()
+        if not task:
+            return
+        from gtd_ticker.ui.dialogs import TaskDialog
+        dialog = TaskDialog(task=task)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        if dialog.exec():
+            data = dialog.get_data()
+            task.title = data["title"]
+            task.category = data["category"]
+            task.priority = data["priority"]
+            task.deadline = data["deadline"] if data["deadline"] else None
+            task.details = data["details"]
+            task.attachments = data["attachments"]
+            
+            tasks = Storage.load_tasks()
+            for i, t in enumerate(tasks):
+                if t.id == task.id:
+                    tasks[i] = task
+                    break
+            Storage.save_tasks(tasks)
+            self.reload_data()
 
     def show_overdue_warning(self, task):
         """强制逾期警告"""

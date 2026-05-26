@@ -23,6 +23,13 @@ def build_menu(menu_data):
     for item_data in menu_data:
         if item_data == "separator":
             menu.append(Gtk.SeparatorMenuItem())
+        elif "submenu" in item_data:
+            item = Gtk.MenuItem(label=item_data["label"])
+            submenu = build_menu(item_data["submenu"])
+            item.set_submenu(submenu)
+            if not item_data.get("enabled", True):
+                item.set_sensitive(False)
+            menu.append(item)
         else:
             item = Gtk.MenuItem(label=item_data["label"])
             item.connect("activate", on_menu_item_clicked, item_data["id"])
