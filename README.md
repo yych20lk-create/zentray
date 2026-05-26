@@ -1,44 +1,38 @@
-# GTD 极客看板 (GTD Ticker)
+# GTD 极客看板 (GTD Ticker v3.0)
 
-GTD 极客看板是一个为 Linux 桌面环境（推荐 Ubuntu 24.04 GNOME Wayland）打造的轻量级、优雅且常驻顶部托盘区的 GTD (Getting Things Done) 待办事项管理工具。
+> 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，脱胎换骨为一款现代化的极致效率工具。
 
-## ✨ 核心特性
+## ✨ v3.0 全新特性
 
-- **托盘常驻与智能轮播**：任务悬浮于桌面托盘区，基于加权轮播调度器自动轮播提醒，拒绝遗忘。
-- **动态分类与截止日期**：支持「生活、工作、学习」分类。搭载逾期自动惩罚机制，逾期未完成任务自动提高优先级并顺延。
-- **周期任务自动派发**：支持一次性任务和周期任务（每日、每周、每月），底层引擎会在后台自动派发新周期的实例任务。
-- **每日精细战报推送**：集成 WxPusher，每日自动总结完成的任务、废弃的任务和明日待办清册，并精准推送到微信，带有防折叠时间戳和独立逾期警告分区。
-- **读写分离与数据安全**：分离活动任务 (`active_tasks.json`) 与历史归档日志 (`archive/`)，所有操作基于原生 GTK3 弹窗，严格确保跨日或异常崩溃不丢失数据。
+- **Qt6 现代化架构**：全面使用 `PySide6` 重构，支持暗黑模式 QSS 注入、无边框渲染、圆角阴影 UI。彻底告别上世纪粗糙的弹窗风格。
+- **多线程防崩溃护城河**：采用 Qt 原生的 `QThread` 配合 `Signal/Slot` 机制处理一切后台任务（包含大模型请求、死线扫描等），UI 线程极致流畅，0 卡顿。
+- **单例进程锁**：基于 `QLocalServer` 实现跨平台级别的防多开保护机制，安全回收崩溃连接。
+- **标准数据规范**：重构存储底层，使用 `platformdirs` 智能适配。你的数据将被妥善、无污染地存放在操作系统的专属用户数据目录中。
+- **AI 打更人机制**：集成每日 23:30 自动异步执行的 AI 复盘服务，利用带有“毒舌+鼓励”性格的系统 Prompt，生成总结后调用 WxPusher 报警至你的手机。
+- **多维度防打扰**：跨平台空闲/解锁状态监听（Beta开发中），智能合并并挂起处于锁屏状态下的强提醒弹窗。
 
-## 🛠️ 环境依赖
+## 🛠️ 环境要求与安装
 
-- **操作系统**: Ubuntu 24.04 (GNOME 46) 等支持 `AppIndicator3` 的 Linux 桌面系统。
-- **语言与组件库**: 
-  - Python 3.x
-  - `python3-gi` (PyGObject)
-  - `gir1.2-gtk-3.0` (GTK3)
-  - `gir1.2-ayatanaappindicator3-0.1`
-  - `requests` (用于微信推送)
+本项目对跨平台兼容性极佳，但由于使用了最新的 Qt 渲染引擎，请确保你的环境版本足够现代。
 
-## 🚀 快速启动
-
-1. 赋予执行权限：
 ```bash
-chmod +x todo_ticker.py send_daily_summary.py
+# 1. 确保 Python 3.10+
+python3 --version
+
+# 2. 安装所有重构后的底层依赖
+pip install PySide6 platformdirs requests pynput
+
+# 3. 授予执行权限并启动主程序
+chmod +x gtd_ticker/main.py
+./gtd_ticker/main.py &
 ```
 
-2. 运行主程序：
-```bash
-./todo_ticker.py &
-```
-> *建议：为了极致体验，可将其配置为 Ubuntu 的“开机自启动程序”。*
+## ⚙️ 核心环境变量
 
-3. 每日战报配置：
-打开 `send_daily_summary.py`，在顶部配置区填入你在 WxPusher 后台获取的 `APP_TOKEN` 与 `MY_UID`。你可以将其加入系统 `crontab` 实现每晚自动复盘。
+打开 `gtd_ticker/config.py`，你可以在此调整你的极客参数：
+- `AI_API_BASE_URL` / `AI_API_KEY`：配置你的大模型地址以激活“毒舌教练”。
+- `WXPUSHER_APP_TOKEN` / `WXPUSHER_UID`：配置手机端强提醒推送令牌。
+- `POMODORO_MINUTES`：全局沉浸状态倒计时长度。
 
-## 📁 存储位置
-本项目严格遵循 Linux 用户规范，不会污染代码仓库。运行时所有数据均存放在以下独立目录：
-* `~/.local/share/my_todo_ticker/`
-
-## 📄 需求说明
-详见仓库中的 `桌面顶部托盘应用需求文档.md`。
+## 📁 架构说明
+本仓库不再使用杂乱无章的平铺脚本，而是严格遵循 Clean Architecture 原则。业务逻辑、底层持久化与视图渲染完全解耦。详情可阅读仓库底部的代码导读。
