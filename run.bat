@@ -13,5 +13,8 @@ IF NOT EXIST "venv" (
     call venv\Scripts\activate.bat
 )
 
+echo 启动本地通知公共服务...
+start pythonw notification_service/main.py
+
 echo 启动 GTD Ticker...
 start pythonw gtd_ticker/main.py

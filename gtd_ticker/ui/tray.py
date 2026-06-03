@@ -207,6 +207,21 @@ class TrayManager(QObject):
         elif action_id.startswith("select_task_"):
             task_id = action_id[len("select_task_"):]
             self.select_task(task_id)
+        elif action_id.startswith("edit_task_list_"):
+            task_id = action_id[len("edit_task_list_"):]
+            self.edit_specific_task(task_id)
+        elif action_id.startswith("done_task_list_"):
+            task_id = action_id[len("done_task_list_"):]
+            self.mark_specific_task_done(task_id)
+        elif action_id.startswith("abandon_task_list_"):
+            task_id = action_id[len("abandon_task_list_"):]
+            self.abandon_specific_task(task_id)
+        elif action_id.startswith("edit_periodic_"):
+            template_id = action_id[len("edit_periodic_"):]
+            self.edit_periodic_template(template_id)
+        elif action_id.startswith("terminate_periodic_"):
+            template_id = action_id[len("terminate_periodic_"):]
+            self.terminate_periodic_template(template_id)
         elif action_id == "pomodoro":
             self.start_pomodoro()
         elif action_id == "quit":
@@ -216,6 +231,7 @@ class TrayManager(QObject):
         """动态刷新右键菜单状态"""
         task = self.scheduler.get_current()
         active_tasks = Storage.load_tasks()
+        periodic_templates = Storage.load_periodic_templates()
 
         # Build 状态更新 submenu
         status_submenu = [
@@ -226,18 +242,51 @@ class TrayManager(QObject):
         # Build 任务列表 submenu
         task_list_submenu = []
         if active_tasks:
+            task_list_submenu.append({"id": "label_active", "label": "【当前活跃任务】", "enabled": False})
             for t in active_tasks:
                 emoji = "🔴" if t.priority == "high" else "🟡" if t.priority == "medium" else "🟢"
                 prefix = "★ " if task and t.id == task.id else ""
+                
+                t_submenu = [
+                    {"id": f"select_task_{t.id}", "label": "🔄 切换到此任务"},
+                    {"id": f"edit_task_list_{t.id}", "label": "📝 编辑任务"},
+                    {"id": f"done_task_list_{t.id}", "label": "✅ 完成任务"},
+                    {"id": f"abandon_task_list_{t.id}", "label": "❌ 废弃任务"}
+                ]
+                
                 task_list_submenu.append({
-                    "id": f"select_task_{t.id}",
+                    "id": f"task_{t.id}",
                     "label": f"{prefix}{emoji} {t.title}",
+                    "submenu": t_submenu,
                     "enabled": not self.is_pomodoro
                 })
         else:
             task_list_submenu.append({
                 "id": "no_tasks",
                 "label": "暂无待办任务",
+                "enabled": False
+            })
+
+        task_list_submenu.append("separator")
+
+        if periodic_templates:
+            task_list_submenu.append({"id": "label_periodic", "label": "【周期任务模板】", "enabled": False})
+            for pt in periodic_templates:
+                emoji = "🔁"
+                pt_submenu = [
+                    {"id": f"edit_periodic_{pt.template_id}", "label": "📝 编辑模板"},
+                    {"id": f"terminate_periodic_{pt.template_id}", "label": "🛑 终止周期任务"}
+                ]
+                task_list_submenu.append({
+                    "id": f"periodic_{pt.template_id}",
+                    "label": f"{emoji} {pt.base_title}",
+                    "submenu": pt_submenu,
+                    "enabled": not self.is_pomodoro
+                })
+        else:
+            task_list_submenu.append({
+                "id": "no_periodic",
+                "label": "暂无周期任务",
                 "enabled": False
             })
 
@@ -436,6 +485,96 @@ class TrayManager(QObject):
                     break
             Storage.save_tasks(tasks)
             self.reload_data()
+
+    def edit_specific_task(self, task_id):
+        tasks = Storage.load_tasks()
+        target_task = None
+        for t in tasks:
+            if t.id == task_id:
+                target_task = t
+                break
+        if not target_task:
+            return
+
+        from gtd_ticker.ui.dialogs import TaskDialog
+        dialog = TaskDialog(task=target_task)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        if dialog.exec():
+            data = dialog.get_data()
+            target_task.title = data["title"]
+            target_task.category = data["category"]
+            target_task.priority = data["priority"]
+            target_task.deadline = data["deadline"] if data["deadline"] else None
+            target_task.details = data["details"]
+            target_task.attachments = data["attachments"]
+            
+            Storage.save_tasks(tasks)
+            self.reload_data()
+
+    def mark_specific_task_done(self, task_id):
+        tasks = Storage.load_tasks()
+        target_task = None
+        for t in tasks:
+            if t.id == task_id:
+                target_task = t
+                break
+        if not target_task:
+            return
+            
+        Storage.archive_task(target_task, "DONE")
+        tasks = [t for t in tasks if t.id != task_id]
+        Storage.save_tasks(tasks)
+        self.reload_data()
+        self.backend.show_notification("任务完成", f"已斩杀: {target_task.title}")
+
+    def abandon_specific_task(self, task_id):
+        tasks = Storage.load_tasks()
+        target_task = None
+        for t in tasks:
+            if t.id == task_id:
+                target_task = t
+                break
+        if not target_task:
+            return
+            
+        Storage.archive_task(target_task, "ABANDONED")
+        tasks = [t for t in tasks if t.id != task_id]
+        Storage.save_tasks(tasks)
+        self.reload_data()
+        self.backend.show_notification("任务废弃", f"已废弃: {target_task.title}")
+
+    def edit_periodic_template(self, template_id):
+        templates = Storage.load_periodic_templates()
+        target_template = None
+        for pt in templates:
+            if pt.template_id == template_id:
+                target_template = pt
+                break
+        if not target_template:
+            return
+            
+        from gtd_ticker.ui.dialogs import TaskDialog
+        dialog = TaskDialog(task=target_template)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        if dialog.exec():
+            data = dialog.get_data()
+            target_template.base_title = data["title"]
+            target_template.category = data["category"]
+            target_template.priority = data["priority"]
+            target_template.details = data["details"]
+            
+            Storage.save_periodic_templates(templates)
+            self.reload_data()
+            self.backend.show_notification("周期任务", "周期任务模板已更新。")
+
+    def terminate_periodic_template(self, template_id):
+        templates = Storage.load_periodic_templates()
+        templates = [pt for pt in templates if pt.template_id != template_id]
+        Storage.save_periodic_templates(templates)
+        self.reload_data()
+        self.backend.show_notification("周期任务", "该周期任务已终止。")
 
     def show_overdue_warning(self, task):
         """强制逾期警告"""

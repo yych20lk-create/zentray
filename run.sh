@@ -4,6 +4,11 @@
 # 进入项目根目录
 cd "$(dirname "$0")"
 
+# 如果存在 .env 文件，则加载其中的环境变量配置 (如 AI_API_KEY 等)
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
 # 检查虚拟环境是否已经存在
 if [ -f "venv/bin/python3" ]; then
     PYTHON_CMD="venv/bin/python3"
@@ -25,6 +30,16 @@ if [ ! -d "venv" ]; then
 else
     source venv/bin/activate
 fi
+
+# 清理可能残留的旧进程，防止端口或资源被占用
+echo "清理旧进程..."
+pkill -f "notification_service/main.py" || true
+pkill -f "gtd_ticker/main.py" || true
+pkill -f "linux_tray_bridge.py" || true
+
+# 启动通知服务 (在后台)
+echo "启动本地通知公共服务..."
+python notification_service/main.py &
 
 # 启动程序
 echo "启动 GTD Ticker..."

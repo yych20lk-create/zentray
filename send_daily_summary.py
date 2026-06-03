@@ -6,18 +6,15 @@ import datetime
 # 将项目根目录加入系统路径以支持模块导入
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from gtd_ticker.workers.nightly_job import NightlyJobWorker
+from gtd_ticker.workers.nightly_job import execute_nightly_review
 
 def main():
     print("🚀 正在手动触发生成并发送今日 GTD 日报...")
     
-    # 实例化打更人工作线程类
-    worker = NightlyJobWorker()
-    
     # 获取今天日期字符串并立即执行复盘逻辑
     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
     try:
-        worker._execute_nightly_review(today_str)
+        execute_nightly_review(today_str)
         print("✅ 发送指令已执行完毕！请检查您的微信 WxPusher 提醒。")
     except Exception as e:
         print(f"❌ 发送失败，错误信息: {e}", file=sys.stderr)

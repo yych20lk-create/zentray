@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QComboBox, QPushButton, QRadioButton, QWidget, QFileDialog
 )
 from PySide6.QtCore import Qt
-from gtd_ticker.core.models import Task
+from gtd_ticker.core.models import Task, PeriodicTemplate
 
 class TaskDialog(QDialog):
     def __init__(self, parent=None, task=None):
@@ -151,6 +151,15 @@ class TaskDialog(QDialog):
             self.deadline_entry.setText(self.task.deadline or "")
             self.details_edit.setPlainText(self.task.details)
             self.update_att_label()
+        elif isinstance(self.task, PeriodicTemplate):
+            self.title_entry.setText(self.task.base_title)
+            self.category_combo.setCurrentText(self.task.category)
+            idx = self.priority_combo.findData(self.task.priority)
+            if idx >= 0: self.priority_combo.setCurrentIndex(idx)
+            self.details_edit.setPlainText(self.task.details)
+            self.deadline_entry.setEnabled(False)
+            self.deadline_entry.setPlaceholderText("周期任务模板不支持单独截期")
+            self.att_list_label.setText("周期任务模板不支持附件")
 
     def get_data(self) -> dict:
         is_periodic = self.rb_periodic.isChecked() if not self.is_editing else False

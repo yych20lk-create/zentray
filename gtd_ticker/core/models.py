@@ -17,6 +17,18 @@ class Task:
     overdue_penalty_date: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.datetime.now().isoformat())
 
+    def __post_init__(self):
+        if self.attachments is None:
+            self.attachments = []
+        if self.details is None:
+            self.details = ""
+        if self.priority is None:
+            self.priority = "medium"
+        if not self.title:
+            self.title = "Untitled"
+        if not self.category:
+            self.category = "工作"
+
     def to_dict(self):
         return asdict(self)
 
@@ -35,6 +47,16 @@ class PeriodicTemplate:
     priority: str = "medium"
     last_generated_period: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.datetime.now().isoformat())
+
+    def __post_init__(self):
+        if self.details is None:
+            self.details = ""
+        if self.priority is None:
+            self.priority = "medium"
+        if not self.base_title:
+            self.base_title = "Untitled"
+        if not self.category:
+            self.category = "工作"
 
     def to_dict(self):
         return asdict(self)
