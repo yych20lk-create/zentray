@@ -1,20 +1,25 @@
 # GTD 极客看板 (GTD Ticker v3.6)
 
-> 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，脱胎换骨为一款现代化的极致效率工具。针对 Linux 桌面环境进行了独创的顶栏原生文字级融合，并集成了独立的本地公共通知发送服务。
+> 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，是一款现代化的极致个人效率工具。
+> - 在 **Linux (GNOME)** 环境下：采用独创的 **双进程原生桥接 (Native GTK Bridge)**，实现系统顶栏文字级原生无缝融合、状态栏自适应与完美的彩色进度圆饼图标渲染。
+> - 在 **Windows / macOS / 其他 Linux** 环境下：自动无缝回退到标准 **Qt 系统托盘模式 (Qt Standard Tray)**，提供统一且美观的系统级交互面板。
+
+---
 
 ## ✨ v3.6 全新特性
 
 - **模块化本地通知服务 (Notification Service)**：独立拆分出通知发送模块，作为一个通用本地微服务（运行在 `http://127.0.0.1:18330`）运行。极客看板或其他本地脚本（如周报生成、报警等）均可通过调用统一的本地 API `/send` 向移动端推送消息。
 - **多通道可配置发送 (Extensible Senders)**：通知服务内部实现了面向接口的通道管理，不仅支持 `WxPusher` 微信推送，还支持 `钉钉机器人 Webhook` 等多种发送通道，支持即时热插拔与多通道同步发送。
-- **模版定制完全解耦**：通知服务作为“无状态通道”，本身不耦合任何日报或报警的文本格式，具体的排版与 AI 总结模版完全由调用方（如极客看板的 `NightlyJob`）自由定制。
-- **顶栏状态栏融合模式 (GNOME Natively)**：Linux 下引入 **`双进程原生桥接 (Native GTK Bridge)`**，直接绕过 Qt 托盘 1:1 比例限制，在系统状态栏以文字形式直接呈现当前待办，并根据任务标题长度自适应文本框宽度。
-- **极客下拉菜单交互**：
-  - **🔄 状态更新**：子菜单支持「✅ 完成」或「❌ 废弃」当前任务。
-  - **📝 编辑查看**：点击后直接呼出模态框，支持对当前任务进行查看与二次编辑。
-  - **📋 任务列表**：子菜单展示当前所有未完成的任务，支持点击一键切换。
+- **模版定制完全解耦**：通知服务作为“无状态通道”，本身不耦合任何日报或报警的文本格式，具体的排版与 AI 总结模版完全由调用方（如极客看板 of `NightlyJob`）自由定制。
+- **全平台高度优化的番茄钟模式 (Pomodoro Mode)**：
+  - 专注时自动切换至最简化的两项下拉菜单：`⏹ 中止当前专注` 和 `➕ 延长当前专注 (+10分钟)`，免除杂乱选项干扰。
+  - 顶栏状态显示自适应净化，专注于时间数字本身；在 Linux GNOME 下更辅以定制的卡通番茄大图标，避免了传统文字 Emoji 与托盘图标并排重叠的问题。
+- **防止下拉菜单秒级闪烁**：加入了全新的菜单变更对比缓存（Diff Cache），在后台每秒更新时，如菜单项及状态未发生改变，自动拦截对底层系统菜单的重载重构，杜绝任何“闪烁”或“自动缩回”现象。
 - **一键式部署与运行**：
   - **Linux / macOS**: 提供 `run.sh` 脚本，自动初始化 venv，一键启动本地通知服务与 GTD 看板主程序。
   - **Windows**: 提供 `run.bat` 批处理文件，双击一键拉起。
+
+---
 
 ## 🛠️ 环境要求与安装
 
@@ -22,27 +27,47 @@
 
 直接运行包装脚本，会自动安装 Python 依赖（从 `requirements.txt` 读取）并启动程序（包括本地通知服务）：
 
+#### Linux / macOS 部署：
 ```bash
-# Linux / macOS
 chmod +x run.sh
 ./run.sh
-
-# Windows
-双击运行 run.bat
 ```
+*提示：脚本已配置 `nohup` 运行，进程启动后您可以直接安全地关闭终端，应用仍会在后台持续静默运行。*
 
-### 📦 手动安装与独立运行通知服务
+#### Windows 部署：
+双击运行项目根目录下的 **`run.bat`**。
+*提示：批处理脚本会在后台通过 `pythonw.exe` 独立拉起服务和主程序，无任何烦人的 Cmd 命令行黑窗口残留。*
 
-```bash
-# 1. 安装依赖
-pip install -r requirements.txt
+---
 
-# 2. 启动本地通知服务
-python notification_service/main.py
+## ⚠️ 跨平台注意事项与常见问题 (FAQ)
 
-# 3. 启动看板主程序
-python gtd_ticker/main.py
-```
+### 1. macOS 系统下「快捷键无法唤出」
+* **原因**：看板的快捷键机制基于 `pynput` 的全局监听，在 macOS 系统中，任何监听全局键鼠的程序都需要系统**辅助功能 (Accessibility) 权限**。
+* **解决办法**：
+  1. 打开 macOS 的 **系统设置** -> **隐私与安全性** -> **辅助功能**。
+  2. 在列表中添加并勾选您运行此脚本的终端软件（如 `Terminal`、`iTerm2` 或 `Visual Studio Code`）。
+  3. 重新运行 `./run.sh` 即可。
+
+### 2. Linux 平台下「无法切换中文输入法 (Fcitx5)」
+* **原因**：部分 Linux 发行版下的 PySide6 (Qt) 库会与系统的 Fcitx 发生输入法 ABI 冲突。
+* **解决办法**：本项目已在 `gtd_ticker/main.py` 的入口中自动注入了环境变量：
+  ```python
+  os.environ["QT_IM_MODULE"] = "ibus"
+  ```
+  该行已完美解决 Fcitx 唤出与打字问题，无需用户手动配置。
+
+### 3. Windows 下「如何彻底关闭后台程序」
+* **原因**：Windows 下使用了 `pythonw` 独立运行于后台。
+* **解决办法**：
+  * 在托盘图标上右键，选择 **`❌ 退出程序`** 可安全关闭主看板（退出时会自动触发本地通知服务的关闭）。
+  * 若要手动清理，亦可直接在 cmd 中运行以下命令杀死残余进程：
+    ```cmd
+    taskkill /f /im python.exe
+    taskkill /f /im pythonw.exe
+    ```
+
+---
 
 ## ⚙️ 核心配置文件与参数
 
@@ -57,19 +82,24 @@ python gtd_ticker/main.py
 调整番茄钟时间或大模型锐评教练参数：
 - `AI_API_BASE_URL` / `AI_API_KEY`：配置大模型地址以激活“毒舌教练”。
 - `POMODORO_MINUTES`：番茄钟时长（默认 25 分钟）。
+- `HOTKEY_QUICK_ADD`：闪电添加任务的全局快捷键，macOS 默认为 `cmd+alt+t`，Windows/Linux 默认为 `ctrl+alt+t`。
+
+---
 
 ## 📡 本地通知 API 接口
 
 任何第三方应用或脚本都可以直接向本地服务投递消息：
-- **请求方法**: `POST`
-- **请求地址**: `http://127.0.0.1:18330/send`
-- **请求体 (JSON)**:
-```json
-{
-  "title": "消息标题",
-  "content": "这里是支持 **Markdown** 的正文内容"
-}
-```
+* **请求方法**: `POST`
+* **请求地址**: `http://127.0.0.1:18330/send`
+* **请求体 (JSON)**:
+  ```json
+  {
+    "title": "消息标题",
+    "content": "这里是支持 **Markdown** 的正文内容"
+  }
+  ```
+
+---
 
 ## 📁 架构说明
 - `gtd_ticker/`: 看板核心逻辑与 PySide6 GUI 视图。
@@ -77,4 +107,4 @@ python gtd_ticker/main.py
   - `senders/`: 通道发送器（WxPusher, DingTalk 等，均继承自 `BaseSender`）。
   - `main.py`: 本地 API 服务主入口。
   - `client.py`: 供外部 Python 脚本导入调用的客户端类 `NotificationClient`。
-- `send_daily_summary.py`: 根目录下的一键手动发送日报脚本。
+- `send_daily_summary.py`: 根目录下的一键手动发送日报脚本。可在终端中通过 `python send_daily_summary.py` 直接调用发送。

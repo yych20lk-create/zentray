@@ -39,8 +39,8 @@ pkill -f "linux_tray_bridge.py" || true
 
 # 启动通知服务 (在后台)
 echo "启动本地通知公共服务..."
-python notification_service/main.py &
+nohup venv/bin/python notification_service/main.py > /dev/null 2>&1 &
 
 # 启动程序
 echo "启动 GTD Ticker..."
-python gtd_ticker/main.py &
+nohup venv/bin/python gtd_ticker/main.py > /dev/null 2>&1 &

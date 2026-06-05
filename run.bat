@@ -14,7 +14,7 @@ IF NOT EXIST "venv" (
 )
 
 echo 启动本地通知公共服务...
-start pythonw notification_service/main.py
+start "" venv\Scripts\pythonw.exe notification_service/main.py
 
 echo 启动 GTD Ticker...
-start pythonw gtd_ticker/main.py
+start "" venv\Scripts\pythonw.exe gtd_ticker/main.py
