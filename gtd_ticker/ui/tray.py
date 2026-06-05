@@ -182,6 +182,7 @@ class TrayManager(QObject):
         self.is_pomodoro = False
         self.current_text = ""
         self.is_loading = True
+        self.last_menu_items = None
         
         # 先生成饼图图标，使底层的桥接进程能正常加载
         self.generate_pie_icons()
@@ -249,11 +250,25 @@ class TrayManager(QObject):
             self.terminate_periodic_template(template_id)
         elif action_id == "pomodoro":
             self.start_pomodoro()
+        elif action_id == "stop_pomodoro":
+            self.stop_pomodoro()
+        elif action_id == "extend_pomodoro":
+            self.extend_pomodoro()
         elif action_id == "quit":
             self.app.quit()
 
     def update_menu_state(self):
         """动态刷新右键菜单状态"""
+        if self.is_pomodoro:
+            items = [
+                {"id": "stop_pomodoro", "label": "⏹ 中止当前专注"},
+                {"id": "extend_pomodoro", "label": "➕ 延长当前专注 (+10分钟)"}
+            ]
+            if self.last_menu_items != items:
+                self.last_menu_items = items
+                self.backend.update_menu(items)
+            return
+
         task = self.scheduler.get_current()
         active_tasks = Storage.load_tasks()
         periodic_templates = Storage.load_periodic_templates()
@@ -341,13 +356,15 @@ class TrayManager(QObject):
             {"id": "new", "label": "➕ 新建任务", "enabled": not self.is_pomodoro},
             {
                 "id": "pomodoro",
-                "label": f"🍅 专注 {POMODORO_MINUTES} 分钟" if not self.is_pomodoro else f"🍅 专注中 {self.pomodoro_remaining // 60:02d}:{self.pomodoro_remaining % 60:02d}",
+                "label": f"🍅 专注 {POMODORO_MINUTES} 分钟" if not self.is_pomodoro else "🍅 专注中...",
                 "enabled": not self.is_pomodoro
             },
             "separator",
             {"id": "quit", "label": "❌ 退出程序"}
         ]
-        self.backend.update_menu(items)
+        if self.last_menu_items != items:
+            self.last_menu_items = items
+            self.backend.update_menu(items)
 
     def set_display_text(self, text: str):
         """渲染状态栏文本 (自适应宽度，不滚动)"""
@@ -463,6 +480,33 @@ class TrayManager(QObject):
         painter.end()
         image.save(img_path)
 
+        # 番茄钟专用图标 (pomodoro)
+        img_path = os.path.join(icon_dir, "pomodoro.png")
+        image = QImage(22, 22, QImage.Format_ARGB32)
+        image.fill(QColor(0, 0, 0, 0))
+        
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 红色番茄主体
+        painter.setBrush(QColor(235, 87, 87)) # 番茄红
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(3, 5, 16, 14) # 稍微扁平的椭圆
+        
+        # 绿色番茄蒂/叶
+        painter.setBrush(QColor(39, 174, 96)) # 叶片绿
+        from PySide6.QtGui import QPolygon
+        from PySide6.QtCore import QPoint
+        poly = QPolygon([
+            QPoint(11, 2),
+            QPoint(8, 6),
+            QPoint(14, 6)
+        ])
+        painter.drawPolygon(poly)
+        
+        painter.end()
+        image.save(img_path)
+
     def update_current_task_progress(self):
         """打开当前任务的进度记录弹窗"""
         task = self.scheduler.get_current()
@@ -519,9 +563,10 @@ class TrayManager(QObject):
         self.pomodoro_remaining -= 1
         mins = self.pomodoro_remaining // 60
         secs = self.pomodoro_remaining % 60
-        text = f"🍅 专注中 {mins:02d}:{secs:02d}"
+        text = f"专注中 {mins:02d}:{secs:02d}"
         
         self.set_display_text(text)
+        self.set_icon("pomodoro")
         self.update_menu_state()
         
         if self.pomodoro_remaining <= 0:
@@ -772,3 +817,18 @@ class TrayManager(QObject):
                             break
                     Storage.save_tasks(tasks)
                     self.reload_data()
+
+    def stop_pomodoro(self):
+        """中止当前专注"""
+        self.pomodoro_timer.stop()
+        self.scheduler.resume()
+        self.is_pomodoro = False
+        self.timer.start(POLLING_INTERVAL_MS)
+        self.update_ticker()
+        self.backend.show_notification("番茄钟已中止", "当前专注会话已手动中止。")
+
+    def extend_pomodoro(self):
+        """延长当前专注 10 分钟"""
+        self.pomodoro_remaining += 10 * 60
+        self.tick_pomodoro()
+        self.backend.show_notification("番茄钟延时", "已成功为您延长 10 分钟专注时间！")
