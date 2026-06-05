@@ -5,13 +5,14 @@ import json
 import subprocess
 import threading
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QMessageBox, QApplication
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QImage, QPainter, QColor, QPen
 from PySide6.QtCore import QTimer, Qt, Signal, QObject
+import random
 
 from gtd_ticker.core.models import Task
 from gtd_ticker.core.storage import Storage
 from gtd_ticker.core.scheduler import Scheduler
-from gtd_ticker.config import POLLING_INTERVAL_MS, POMODORO_MINUTES
+from gtd_ticker.config import POLLING_INTERVAL_MS, POMODORO_MINUTES, DATA_DIR
 
 # ==========================================
 # 1. 底层跨平台托盘接口抽象
@@ -21,6 +22,9 @@ class TrayImplementation(QObject):
     action_received = Signal(str)
 
     def set_label(self, text: str):
+        pass
+
+    def set_icon(self, name: str):
         pass
 
     def update_menu(self, items: list):
@@ -44,8 +48,9 @@ class LinuxBridgeTray(TrayImplementation):
 
     def _start_bridge(self):
         bridge_script = os.path.join(os.path.dirname(__file__), "linux_tray_bridge.py")
+        icon_dir = os.path.join(DATA_DIR, "icons")
         self.bridge_process = subprocess.Popen(
-            ["/usr/bin/python3", bridge_script],
+            ["/usr/bin/python3", bridge_script, icon_dir],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, bufsize=1
         )
@@ -67,6 +72,9 @@ class LinuxBridgeTray(TrayImplementation):
                 self.bridge_process.stdin.flush()
             except Exception:
                 pass
+
+    def set_icon(self, name: str):
+        self._send({"type": "icon", "icon": name})
 
     def set_label(self, text: str):
         self._send({"type": "label", "text": text})
@@ -93,22 +101,6 @@ class QtStandardTray(TrayImplementation):
         self.app = app
         self.tray = QSystemTrayIcon()
         
-        # Windows / Mac 下尝试使用默认图标或 fallback 图标
-        fallback_icon = QIcon.fromTheme("emblem-default")
-        if fallback_icon.isNull():
-            # 这里如果有项目自带的 ico 可以换掉
-            pass 
-            
-        self.tray.setIcon(fallback_icon)
-        self.menu = QMenu()
-        self.tray.setContextMenu(self.menu)
-class QtStandardTray(TrayImplementation):
-    """标准的跨平台托盘，适用于 Windows / macOS 或不支持 AppIndicator 的桌面。"""
-    def __init__(self, app):
-        super().__init__()
-        self.app = app
-        self.tray = QSystemTrayIcon()
-        
         fallback_icon = QIcon.fromTheme("emblem-default")
         self.tray.setIcon(fallback_icon)
         self.menu = QMenu()
@@ -118,6 +110,11 @@ class QtStandardTray(TrayImplementation):
         
     def set_label(self, text: str):
         self.tray.setToolTip(text)
+
+    def set_icon(self, name: str):
+        icon_path = os.path.join(DATA_DIR, "icons", f"{name}.png")
+        if os.path.exists(icon_path):
+            self.tray.setIcon(QIcon(icon_path))
 
     def update_menu(self, items: list):
         self.menu.clear()
@@ -130,11 +127,19 @@ class QtStandardTray(TrayImplementation):
                 qt_menu.addSeparator()
             elif "submenu" in item:
                 submenu = QMenu(item["label"], qt_menu)
+                if "icon" in item:
+                    icon_path = os.path.join(DATA_DIR, "icons", f"{item['icon']}.png")
+                    if os.path.exists(icon_path):
+                        submenu.setIcon(QIcon(icon_path))
                 self._build_qt_menu(submenu, item["submenu"])
                 qt_menu.addMenu(submenu)
             else:
                 action = QAction(item["label"], qt_menu)
                 action.setEnabled(item.get("enabled", True))
+                if "icon" in item:
+                    icon_path = os.path.join(DATA_DIR, "icons", f"{item['icon']}.png")
+                    if os.path.exists(icon_path):
+                        action.setIcon(QIcon(icon_path))
                 # 捕获闭包中的变量
                 action.triggered.connect(lambda checked=False, aid=item["id"]: self.action_received.emit(aid))
                 qt_menu.addAction(action)
@@ -172,18 +177,33 @@ class TrayManager(QObject):
         self.app = app
         self.scheduler = Scheduler()
         
+        # 状态参数
+        self.pomodoro_remaining = 0
+        self.is_pomodoro = False
+        self.current_text = ""
+        self.is_loading = True
+        
+        # 先生成饼图图标，使底层的桥接进程能正常加载
+        self.generate_pie_icons()
+        
         # 初始化跨平台托盘底层
         self.backend = create_tray_backend(app)
         self.backend.action_received.connect(self.handle_action)
         self.app.aboutToQuit.connect(self.backend.shutdown)
 
-        # 状态参数
-        self.pomodoro_remaining = 0
-        self.is_pomodoro = False
-        self.current_text = ""
+        # 启动随机加载提示
+        welcome_msgs = [
+            "🚀 正在同步星际轨道数据...请稍候!",
+            "👾 正在捕捉摸鱼的灵感...",
+            "🔮 正在连接高效超能力水晶球...",
+            "☕ 正在为您注入虚拟咖啡因...",
+            "🔋 动力电池已加载 99.9%...冲冲冲!"
+        ]
+        self.set_display_text(random.choice(welcome_msgs))
+        self.set_icon("pie_none_0")
         
-        # 数据加载
-        self.reload_data()
+        # 2.5秒后加载真实数据
+        QTimer.singleShot(2500, self.finish_loading)
         
         # 后台轮训引擎 (常规任务检测)
         self.timer = QTimer()
@@ -202,8 +222,13 @@ class TrayManager(QObject):
             self.mark_current_task_done()
         elif action_id == "abandon":
             self.abandon_current_task()
+        elif action_id == "progress":
+            self.update_current_task_progress()
         elif action_id == "edit":
             self.edit_current_task()
+        elif action_id.startswith("task_action_"):
+            task_id = action_id[len("task_action_"):]
+            self.show_task_action_dialog(task_id)
         elif action_id.startswith("select_task_"):
             task_id = action_id[len("select_task_"):]
             self.select_task(task_id)
@@ -244,20 +269,18 @@ class TrayManager(QObject):
         if active_tasks:
             task_list_submenu.append({"id": "label_active", "label": "【当前活跃任务】", "enabled": False})
             for t in active_tasks:
-                emoji = "🔴" if t.priority == "high" else "🟡" if t.priority == "medium" else "🟢"
                 prefix = "★ " if task and t.id == task.id else ""
                 
-                t_submenu = [
-                    {"id": f"select_task_{t.id}", "label": "🔄 切换到此任务"},
-                    {"id": f"edit_task_list_{t.id}", "label": "📝 编辑任务"},
-                    {"id": f"done_task_list_{t.id}", "label": "✅ 完成任务"},
-                    {"id": f"abandon_task_list_{t.id}", "label": "❌ 废弃任务"}
-                ]
+                # 计算与顶栏完全一致的饼图图标文件名
+                prio = t.priority if t.priority in ["high", "medium", "low"] else "medium"
+                progress_val = getattr(t, "progress", 0)
+                pct = max(0, min(100, (progress_val // 10) * 10))
+                icon_name = f"pie_{prio}_{pct}"
                 
                 task_list_submenu.append({
-                    "id": f"task_{t.id}",
-                    "label": f"{prefix}{emoji} {t.title}",
-                    "submenu": t_submenu,
+                    "id": f"task_action_{t.id}",
+                    "label": f"{prefix}{t.title}",
+                    "icon": icon_name,
                     "enabled": not self.is_pomodoro
                 })
         else:
@@ -299,6 +322,11 @@ class TrayManager(QObject):
                 "enabled": task is not None and not self.is_pomodoro
             },
             {
+                "id": "progress",
+                "label": "📊 更新进度",
+                "enabled": task is not None and not self.is_pomodoro
+            },
+            {
                 "id": "edit",
                 "label": "📝 编辑查看",
                 "enabled": task is not None and not self.is_pomodoro
@@ -329,12 +357,16 @@ class TrayManager(QObject):
 
     def reload_data(self):
         """重新载入磁盘任务并渲染"""
+        if self.is_loading:
+            return
         tasks = Storage.load_tasks()
         self.scheduler.build_queue(tasks)
         self.update_ticker()
 
     def update_ticker(self):
         """标准循环帧：展示待办事项"""
+        if self.is_loading:
+            return
         if self.scheduler.is_paused or self.is_pomodoro:
             return
             
@@ -342,12 +374,125 @@ class TrayManager(QObject):
         if not task:
             text = "🎉 暂无待办事项"
             self.set_display_text(text)
+            self.set_icon("pie_none_0")
         else:
-            emoji = "🔴" if task.priority == "high" else "🟡" if task.priority == "medium" else "🟢"
-            text = f"{emoji} {task.title}"
+            text = task.title
             self.set_display_text(text)
+            # 动态更新饼图图标
+            prio = task.priority if task.priority in ["high", "medium", "low"] else "medium"
+            progress_val = getattr(task, "progress", 0)
+            pct = max(0, min(100, (progress_val // 10) * 10))
+            self.set_icon(f"pie_{prio}_{pct}")
         
         self.update_menu_state()
+
+    def set_icon(self, name: str):
+        """更新托盘图标"""
+        self.backend.set_icon(name)
+
+    def finish_loading(self):
+        """结束程序加载状态，载入真实任务"""
+        self.is_loading = False
+        self.reload_data()
+
+    def generate_pie_icons(self):
+        """在本地生成一套 0%-100% 进度的圆饼图图标"""
+        import os
+        from PySide6.QtGui import QImage, QPainter, QColor, QPen
+        from PySide6.QtCore import Qt
+        
+        icon_dir = os.path.join(DATA_DIR, "icons")
+        os.makedirs(icon_dir, exist_ok=True)
+        
+        colors = {
+            "high": QColor(235, 87, 87),    # 扁平化红色
+            "medium": QColor(242, 201, 76), # 扁平化黄色
+            "low": QColor(39, 174, 96),     # 扁平化绿色
+        }
+        
+        for key, color in colors.items():
+            for pct in range(0, 110, 10):
+                img_path = os.path.join(icon_dir, f"pie_{key}_{pct}.png")
+                image = QImage(22, 22, QImage.Format_ARGB32)
+                image.fill(QColor(0, 0, 0, 0))
+                
+                painter = QPainter(image)
+                painter.setRenderHint(QPainter.Antialiasing)
+                
+                # 背景轨道 (Desaturated/Lighter)
+                bg_color = QColor(color)
+                bg_color.setAlpha(60)
+                painter.setBrush(bg_color)
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(2, 2, 18, 18)
+                
+                # 顺时针进度填充 (0-100%)
+                if pct > 0:
+                    painter.setBrush(color)
+                    start_angle = 90 * 16
+                    span_angle = -int(360 * (pct / 100.0) * 16)
+                    painter.drawPie(2, 2, 18, 18, start_angle, span_angle)
+                
+                # 边缘圆环
+                painter.setBrush(Qt.NoBrush)
+                painter.setPen(QPen(color, 1))
+                painter.drawEllipse(2, 2, 18, 18)
+                
+                painter.end()
+                image.save(img_path)
+                
+        # 灰色无状态图标 (pie_none_0)
+        img_path = os.path.join(icon_dir, "pie_none_0.png")
+        image = QImage(22, 22, QImage.Format_ARGB32)
+        image.fill(QColor(0, 0, 0, 0))
+        
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        none_color = QColor(142, 142, 147)
+        bg_color = QColor(none_color)
+        bg_color.setAlpha(60)
+        painter.setBrush(bg_color)
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(2, 2, 18, 18)
+        
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(none_color, 1))
+        painter.drawEllipse(2, 2, 18, 18)
+        
+        painter.end()
+        image.save(img_path)
+
+    def update_current_task_progress(self):
+        """打开当前任务的进度记录弹窗"""
+        task = self.scheduler.get_current()
+        if not task:
+            return
+        from gtd_ticker.ui.dialogs import ProgressDialog
+        dialog = ProgressDialog(task=task)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        
+        if dialog.exec():
+            percent, note = dialog.get_data()
+            task.progress = percent
+            
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_desc = note if note else f"进度更新为 {percent}%"
+            task.progress_logs.append({
+                "time": timestamp,
+                "percent": percent,
+                "note": log_desc
+            })
+            
+            # 保存数据并刷新
+            tasks = Storage.load_tasks()
+            for i, t in enumerate(tasks):
+                if t.id == task.id:
+                    tasks[i] = task
+                    break
+            Storage.save_tasks(tasks)
+            self.reload_data()
 
     def select_task(self, task_id):
         """手动选择并切换至指定任务"""
@@ -358,12 +503,7 @@ class TrayManager(QObject):
                 break
         if target_idx != -1:
             self.scheduler.cursor = target_idx
-            task = self.scheduler.get_next()
-            if task:
-                emoji = "🔴" if task.priority == "high" else "🟡" if task.priority == "medium" else "🟢"
-                text = f"{emoji} {task.title}"
-                self.set_display_text(text)
-                self.update_menu_state()
+            self.update_ticker()
 
     def start_pomodoro(self):
         """启用番茄钟模式"""
@@ -589,3 +729,46 @@ class TrayManager(QObject):
     def show_notification(self, text):
         """暴露给外部 workers 的通知接口"""
         self.backend.show_notification("GTD Ticker", text)
+
+    def show_task_action_dialog(self, task_id):
+        # 查找任务
+        tasks = Storage.load_tasks()
+        task = next((t for t in tasks if t.id == task_id), None)
+        if not task:
+            return
+            
+        from gtd_ticker.ui.dialogs import TaskActionDialog
+        dialog = TaskActionDialog(task=task)
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
+        if dialog.exec():
+            action = dialog.get_selected_action()
+            if action == "select":
+                self.select_task(task_id)
+            elif action == "edit":
+                self.edit_specific_task(task_id)
+            elif action == "done":
+                self.mark_specific_task_done(task_id)
+            elif action == "abandon":
+                self.abandon_specific_task(task_id)
+            elif action == "progress":
+                from gtd_ticker.ui.dialogs import ProgressDialog
+                pd = ProgressDialog(task=task)
+                pd.setWindowFlags(pd.windowFlags() | Qt.WindowStaysOnTopHint)
+                if pd.exec():
+                    percent, note = pd.get_data()
+                    task.progress = percent
+                    import datetime
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    log_desc = note if note else f"进度更新为 {percent}%"
+                    task.progress_logs.append({
+                        "time": timestamp,
+                        "percent": percent,
+                        "note": log_desc
+                    })
+                    # 保存任务
+                    for i, t in enumerate(tasks):
+                        if t.id == task.id:
+                            tasks[i] = task
+                            break
+                    Storage.save_tasks(tasks)
+                    self.reload_data()

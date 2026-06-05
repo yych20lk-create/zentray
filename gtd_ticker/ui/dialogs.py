@@ -1,7 +1,8 @@
 import os
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-    QTextEdit, QComboBox, QPushButton, QRadioButton, QWidget, QFileDialog
+    QTextEdit, QComboBox, QPushButton, QRadioButton, QWidget, QFileDialog,
+    QSlider, QTextBrowser
 )
 from PySide6.QtCore import Qt
 from gtd_ticker.core.models import Task, PeriodicTemplate
@@ -173,3 +174,153 @@ class TaskDialog(QDialog):
             "task_type": "periodic" if is_periodic else "one-time",
             "periodicity": self.period_combo.currentText()
         }
+
+class ProgressDialog(QDialog):
+    def __init__(self, parent=None, task=None):
+        super().__init__(parent)
+        self.task = task
+        self.setWindowTitle(f"更新进度 - {task.title if task else ''}")
+        self.resize(400, 450)
+        self.init_ui()
+        self.load_styles()
+
+    def load_styles(self):
+        qss_path = os.path.join(os.path.dirname(__file__), 'styles', 'main.qss')
+        if os.path.exists(qss_path):
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # 1. 历史记录展示
+        layout.addWidget(QLabel("历史进展记录:"))
+        self.history_display = QTextBrowser()
+        self.history_display.setMinimumHeight(150)
+        
+        # 填充历史记录
+        logs = getattr(self.task, "progress_logs", [])
+        if not logs:
+            self.history_display.setPlainText("暂无历史进展记录。")
+        else:
+            log_texts = []
+            for log in logs:
+                t = log.get("time", "")
+                p = log.get("percent", 0)
+                n = log.get("note", "")
+                log_texts.append(f"📅 {t} | 进度: {p}% \n   备注: {n if n else '无'}")
+            self.history_display.setPlainText("\n\n".join(log_texts))
+        layout.addWidget(self.history_display)
+
+        # 2. 进度条 (QSlider, 范围 0 到 10)
+        slider_layout = QHBoxLayout()
+        slider_layout.addWidget(QLabel("当前进度:"))
+        
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(0, 10)
+        self.slider.setTickPosition(QSlider.TicksBelow)
+        self.slider.setTickInterval(1)
+        
+        # 初始进度值 (以 10 为单位换算)
+        current_pct = getattr(self.task, "progress", 0)
+        initial_value = max(0, min(10, current_pct // 10))
+        self.slider.setValue(initial_value)
+        
+        self.slider_val_label = QLabel(f"{initial_value * 10}%")
+        self.slider.valueChanged.connect(self.on_slider_changed)
+        
+        slider_layout.addWidget(self.slider)
+        slider_layout.addWidget(self.slider_val_label)
+        layout.addLayout(slider_layout)
+
+        # 3. 本次进展输入
+        layout.addWidget(QLabel("本次进展描述 (选填):"))
+        self.note_edit = QLineEdit()
+        self.note_edit.setPlaceholderText("记录一下当前做完的事情吧...")
+        layout.addWidget(self.note_edit)
+
+        # 4. 确认取消按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        btn_cancel = QPushButton("取消")
+        btn_cancel.setObjectName("btnWarning")
+        btn_cancel.clicked.connect(self.reject)
+        
+        btn_save = QPushButton("💾 保存进度")
+        btn_save.clicked.connect(self.accept)
+        
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_save)
+        layout.addLayout(btn_layout)
+
+    def on_slider_changed(self, val):
+        self.slider_val_label.setText(f"{val * 10}%")
+
+    def get_data(self) -> tuple:
+        percent = self.slider.value() * 10
+        note = self.note_edit.text().strip()
+        return percent, note
+
+class TaskActionDialog(QDialog):
+    def __init__(self, parent=None, task=None):
+        super().__init__(parent)
+        self.task = task
+        self.selected_action = None
+        self.setWindowTitle("选择操作")
+        self.resize(320, 260)
+        self.init_ui()
+        self.load_styles()
+
+    def load_styles(self):
+        qss_path = os.path.join(os.path.dirname(__file__), 'styles', 'main.qss')
+        if os.path.exists(qss_path):
+            with open(qss_path, 'r', encoding='utf-8') as f:
+                self.setStyleSheet(f.read())
+
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+
+        title_label = QLabel(f"<b>当前任务：</b><br/>{self.task.title}")
+        title_label.setWordWrap(True)
+        title_label.setStyleSheet("font-size: 14px; margin-bottom: 10px;")
+        layout.addWidget(title_label)
+
+        btn_select = QPushButton("🔄 切换到此任务")
+        btn_select.clicked.connect(lambda: self.trigger_action("select"))
+        layout.addWidget(btn_select)
+
+        btn_progress = QPushButton("📊 更新任务进度")
+        btn_progress.clicked.connect(lambda: self.trigger_action("progress"))
+        layout.addWidget(btn_progress)
+
+        btn_edit = QPushButton("📝 编辑任务详情")
+        btn_edit.clicked.connect(lambda: self.trigger_action("edit"))
+        layout.addWidget(btn_edit)
+
+        # QHBoxLayout for Done / Abandon
+        h_layout = QHBoxLayout()
+        btn_done = QPushButton("✅ 完成")
+        btn_done.clicked.connect(lambda: self.trigger_action("done"))
+        btn_abandon = QPushButton("❌ 废弃")
+        btn_abandon.setObjectName("btnWarning")
+        btn_abandon.clicked.connect(lambda: self.trigger_action("abandon"))
+        h_layout.addWidget(btn_done)
+        h_layout.addWidget(btn_abandon)
+        layout.addLayout(h_layout)
+
+        btn_cancel = QPushButton("取消")
+        btn_cancel.setObjectName("btnWarning")
+        btn_cancel.clicked.connect(self.reject)
+        layout.addWidget(btn_cancel)
+
+    def trigger_action(self, action):
+        self.selected_action = action
+        self.accept()
+
+    def get_selected_action(self):
+        return self.selected_action
