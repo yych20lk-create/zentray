@@ -1,6 +1,6 @@
-# GTD 极客看板 (GTD Ticker v3.6)
+# ZenTray 个人禅定看板 (v3.6)
 
-> 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，是一款现代化的极致个人效率工具。
+> 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，是一款现代化的极致个人效率与专注工具。
 > - 在 **Linux (GNOME)** 环境下：采用独创的 **双进程原生桥接 (Native GTK Bridge)**，实现系统顶栏文字级原生无缝融合、状态栏自适应与完美的彩色进度圆饼图标渲染。
 > - 在 **Windows / macOS / 其他 Linux** 环境下：自动无缝回退到标准 **Qt 系统托盘模式 (Qt Standard Tray)**，提供统一且美观的系统级交互面板。
 
@@ -8,15 +8,15 @@
 
 ## ✨ v3.6 全新特性
 
-- **模块化本地通知服务 (Notification Service)**：独立拆分出通知发送模块，作为一个通用本地微服务（运行在 `http://127.0.0.1:18330`）运行。极客看板或其他本地脚本（如周报生成、报警等）均可通过调用统一的本地 API `/send` 向移动端推送消息。
+- **独立本地通知服务 (Notification Service)**：独立拆分出通知发送模块，作为一个通用本地微服务（运行在 `http://127.0.0.1:18330`）运行，与 ZenTray 放置于平级目录。ZenTray 或其他本地脚本（如周报生成、报警等）均可通过调用统一的本地 API `/send` 向移动端推送消息。
 - **多通道可配置发送 (Extensible Senders)**：通知服务内部实现了面向接口的通道管理，不仅支持 `WxPusher` 微信推送，还支持 `钉钉机器人 Webhook` 等多种发送通道，支持即时热插拔与多通道同步发送。
-- **模版定制完全解耦**：通知服务作为“无状态通道”，本身不耦合任何日报或报警的文本格式，具体的排版与 AI 总结模版完全由调用方（如极客看板 of `NightlyJob`）自由定制。
+- **模版定制完全解耦**：通知服务作为“无状态通道”，本身不耦合任何日报或报警的文本格式，具体的排版与 AI 总结模版完全由调用方（如 ZenTray 中的 `NightlyJob`）自由定制。
 - **全平台高度优化的番茄钟模式 (Pomodoro Mode)**：
   - 专注时自动切换至最简化的两项下拉菜单：`⏹ 中止当前专注` 和 `➕ 延长当前专注 (+10分钟)`，免除杂乱选项干扰。
   - 顶栏状态显示自适应净化，专注于时间数字本身；在 Linux GNOME 下更辅以定制的卡通番茄大图标，避免了传统文字 Emoji 与托盘图标并排重叠的问题。
 - **防止下拉菜单秒级闪烁**：加入了全新的菜单变更对比缓存（Diff Cache），在后台每秒更新时，如菜单项及状态未发生改变，自动拦截对底层系统菜单的重载重构，杜绝任何“闪烁”或“自动缩回”现象。
 - **一键式部署与运行**：
-  - **Linux / macOS**: 提供 `run.sh` 脚本，自动初始化 venv，一键启动本地通知服务与 GTD 看板主程序。
+  - **Linux / macOS**: 提供 `run.sh` 脚本，自动初始化 venv，一键启动本地通知服务与 ZenTray 主程序。
   - **Windows**: 提供 `run.bat` 批处理文件，双击一键拉起。
 
 ---
@@ -51,7 +51,7 @@ chmod +x run.sh
 
 ### 2. Linux 平台下「无法切换中文输入法 (Fcitx5)」
 * **原因**：部分 Linux 发行版下的 PySide6 (Qt) 库会与系统的 Fcitx 发生输入法 ABI 冲突。
-* **解决办法**：本项目已在 `gtd_ticker/main.py` 的入口中自动注入了环境变量：
+* **解决办法**：本项目已在 `zentray/main.py` 的入口中自动注入了环境变量：
   ```python
   os.environ["QT_IM_MODULE"] = "ibus"
   ```
@@ -71,14 +71,14 @@ chmod +x run.sh
 
 ## ⚙️ 核心配置文件与参数
 
-### 1. 通讯通道配置：`notification_service/config.json`
+### 1. 通讯通道配置：`../notification_service/config.json`
 在这里配置接收端凭证和激活的推送通道：
 - `PORT`: 本地服务监听端口（默认 `18330`）。
 - `ACTIVE_SENDERS`: 激活的通道列表（例如 `["wxpusher"]` 或 `["wxpusher", "dingtalk"]`）。
 - `WXPUSHER`: 包含 `WXPUSHER_APP_TOKEN` 和 `WXPUSHER_UID`。
 - `DINGTALK`: 包含 `DINGTALK_WEBHOOK_URL`。
 
-### 2. 极客看板配置：`gtd_ticker/config.py`
+### 2. ZenTray 配置：`zentray/config.py`
 调整番茄钟时间或大模型锐评教练参数：
 - `AI_API_BASE_URL` / `AI_API_KEY`：配置大模型地址以激活“毒舌教练”。
 - `POMODORO_MINUTES`：番茄钟时长（默认 25 分钟）。
@@ -102,9 +102,9 @@ chmod +x run.sh
 ---
 
 ## 📁 架构说明
-- `gtd_ticker/`: 看板核心逻辑与 PySide6 GUI 视图。
-- `notification_service/`: 独立通知模块。
+- `zentray/`: 看板核心逻辑与 PySide6 GUI 视图。
+- `../notification_service/`: 独立通道通知模块，位于与本项目平级的本地目录。
   - `senders/`: 通道发送器（WxPusher, DingTalk 等，均继承自 `BaseSender`）。
   - `main.py`: 本地 API 服务主入口。
-  - `client.py`: 供外部 Python 脚本导入调用的客户端类 `NotificationClient`。
+  - `client.py`: 通用推送服务的轻量 Python 客户端类 `NotificationClient`。
 - `send_daily_summary.py`: 根目录下的一键手动发送日报脚本。可在终端中通过 `python send_daily_summary.py` 直接调用发送。

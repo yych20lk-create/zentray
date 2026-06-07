@@ -2,8 +2,8 @@ import datetime
 import uuid
 import time
 from PySide6.QtCore import QThread, Signal
-from gtd_ticker.core.models import Task
-from gtd_ticker.core.storage import Storage
+from zentray.core.models import Task
+from zentray.core.storage import Storage
 
 class WatcherWorker(QThread):
     """

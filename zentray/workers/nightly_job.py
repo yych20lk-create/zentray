@@ -1,10 +1,10 @@
 import datetime
 import time
 from PySide6.QtCore import QThread, Signal
-from gtd_ticker.core.storage import Storage
-from gtd_ticker.services.ai_review import AIReviewService
-from notification_service.client import NotificationClient
-from gtd_ticker.config import ARCHIVE_DIR
+from zentray.core.storage import Storage
+from zentray.services.ai_review import AIReviewService
+from zentray.services.notification import NotificationClient
+from zentray.config import ARCHIVE_DIR
 
 class NightlyJobWorker(QThread):
     """
@@ -72,7 +72,7 @@ def execute_nightly_review(today_str: str):
     ai_reply = AIReviewService.generate_summary(prompt)
     
     # 5. 拼装推向 WxPusher 的最终 Markdown
-    report = f"# 📅 极客看板每日复盘 ({today_str})\n\n"
+    report = f"# 📅 ZenTray 禅定复盘 ({today_str})\n\n"
     report += f"> ⏱️ 生成时间：{now_time_precise} (防折叠标识)\n\n"
     
     if ai_reply:
@@ -87,4 +87,4 @@ def execute_nightly_review(today_str: str):
     
     # 发射到手机
     client = NotificationClient()
-    client.send(title=f"GTD 毒舌复盘 ({now_time_precise})", content=report)
+    client.send(title=f"ZenTray 毒舌复盘 ({now_time_precise})", content=report)

@@ -4,8 +4,8 @@ import datetime
 from pathlib import Path
 from typing import List
 
-from gtd_ticker.config import ACTIVE_TASKS_FILE, PERIODIC_TEMPLATES_FILE, ARCHIVE_DIR
-from gtd_ticker.core.models import Task, PeriodicTemplate
+from zentray.config import ACTIVE_TASKS_FILE, PERIODIC_TEMPLATES_FILE, ARCHIVE_DIR
+from zentray.core.models import Task, PeriodicTemplate
 
 class Storage:
     """

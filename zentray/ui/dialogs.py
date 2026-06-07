@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QSlider, QTextBrowser
 )
 from PySide6.QtCore import Qt
-from gtd_ticker.core.models import Task, PeriodicTemplate
+from zentray.core.models import Task, PeriodicTemplate
 
 class TaskDialog(QDialog):
     def __init__(self, parent=None, task=None):

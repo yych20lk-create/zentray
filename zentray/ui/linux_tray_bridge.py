@@ -59,14 +59,14 @@ icon_dir = sys.argv[1] if len(sys.argv) > 1 else ""
 
 if icon_dir:
     indicator = AppIndicator.Indicator.new_with_path(
-        "gtd_ticker",
+        "zentray",
         "pie_none_0",
         AppIndicator.IndicatorCategory.APPLICATION_STATUS,
         icon_dir
     )
 else:
     indicator = AppIndicator.Indicator.new(
-        "gtd_ticker",
+        "zentray",
         "emblem-default",
         AppIndicator.IndicatorCategory.APPLICATION_STATUS
     )

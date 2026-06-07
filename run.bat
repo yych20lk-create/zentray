@@ -1,5 +1,5 @@
 @echo off
-REM GTD Ticker 快速启动脚本 (Windows)
+REM ZenTray 快速启动脚本 (Windows)
 
 cd /d "%~dp0"
 
@@ -14,7 +14,7 @@ IF NOT EXIST "venv" (
 )
 
 echo 启动本地通知公共服务...
-start "" venv\Scripts\pythonw.exe notification_service/main.py
+start "" venv\Scripts\pythonw.exe ..\notification_service\main.py
 
-echo 启动 GTD Ticker...
-start "" venv\Scripts\pythonw.exe gtd_ticker/main.py
+echo 启动 ZenTray...
+start "" venv\Scripts\pythonw.exe zentray\main.py

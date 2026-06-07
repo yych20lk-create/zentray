@@ -6,13 +6,13 @@ class SingleInstanceGuard:
     单例模式锁：基于 Qt 本地套接字实现跨平台防多开。
     如果检测到同名服务器正在运行，则直接退出。
     """
-    def __init__(self, server_name="GTDTicker_SingleInstance"):
+    def __init__(self, server_name="ZenTray_SingleInstance"):
         self.server_name = server_name
         self.socket = QLocalSocket()
         self.socket.connectToServer(self.server_name)
         
         if self.socket.waitForConnected(500):
-            print("Another instance of GTDTicker is already running. Exiting.")
+            print("Another instance of ZenTray is already running. Exiting.")
             sys.exit(1)
             
         self.server = QLocalServer()

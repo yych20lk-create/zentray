@@ -1,6 +1,6 @@
 import requests
 from typing import Optional
-from gtd_ticker.config import AI_API_BASE_URL, AI_API_KEY, AI_MODEL_NAME
+from zentray.config import AI_API_BASE_URL, AI_API_KEY, AI_MODEL_NAME
 
 class AIReviewService:
     """调用大模型 API 生成每日毒舌锐评总结"""

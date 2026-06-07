@@ -1,5 +1,5 @@
 #!/bin/bash
-# GTD Ticker 快速启动脚本
+# ZenTray 快速启动脚本
 
 # 进入项目根目录
 cd "$(dirname "$0")"
@@ -34,13 +34,13 @@ fi
 # 清理可能残留的旧进程，防止端口或资源被占用
 echo "清理旧进程..."
 pkill -f "notification_service/main.py" || true
-pkill -f "gtd_ticker/main.py" || true
+pkill -f "zentray/main.py" || true
 pkill -f "linux_tray_bridge.py" || true
 
-# 启动通知服务 (在后台)
+# 启动通知服务 (在后台，指向平级的 peer 目录)
 echo "启动本地通知公共服务..."
-nohup venv/bin/python notification_service/main.py > /dev/null 2>&1 &
+nohup venv/bin/python ../notification_service/main.py > /dev/null 2>&1 &
 
 # 启动程序
-echo "启动 GTD Ticker..."
-nohup venv/bin/python gtd_ticker/main.py > /dev/null 2>&1 &
+echo "启动 ZenTray..."
+nohup venv/bin/python zentray/main.py > /dev/null 2>&1 &

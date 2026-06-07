@@ -1,7 +1,7 @@
 import sys
 import os
 
-# 将项目根目录（gtd_ticker 的上一级目录）加入系统路径，解决绝对导包的问题
+# 将项目根目录（zentray 的上一级目录）加入系统路径，解决绝对导包的问题
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # 修复 Linux 下无法唤出 Fcitx5 输入法的底层 BUG (强制使用 ibus 桥接，解决 PySide6 Qt ABI 不兼容问题)
@@ -10,12 +10,12 @@ if sys.platform.startswith('linux'):
     os.environ.setdefault("XMODIFIERS", "@im=fcitx")
 
 from PySide6.QtWidgets import QApplication
-from gtd_ticker.services.system_utils import SingleInstanceGuard, HotkeyListener
-from gtd_ticker.ui.tray import TrayManager
-from gtd_ticker.ui.overlay import QuickAddOverlay
-from gtd_ticker.workers.watcher import WatcherWorker
-from gtd_ticker.workers.nightly_job import NightlyJobWorker
-from gtd_ticker.config import HOTKEY_QUICK_ADD
+from zentray.services.system_utils import SingleInstanceGuard, HotkeyListener
+from zentray.ui.tray import TrayManager
+from zentray.ui.overlay import QuickAddOverlay
+from zentray.workers.watcher import WatcherWorker
+from zentray.workers.nightly_job import NightlyJobWorker
+from zentray.config import HOTKEY_QUICK_ADD
 
 def main():
     # 1. 启动防多开锁

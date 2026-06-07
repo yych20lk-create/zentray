@@ -9,10 +9,10 @@ from PySide6.QtGui import QIcon, QAction, QImage, QPainter, QColor, QPen
 from PySide6.QtCore import QTimer, Qt, Signal, QObject
 import random
 
-from gtd_ticker.core.models import Task
-from gtd_ticker.core.storage import Storage
-from gtd_ticker.core.scheduler import Scheduler
-from gtd_ticker.config import POLLING_INTERVAL_MS, POMODORO_MINUTES, DATA_DIR
+from zentray.core.models import Task
+from zentray.core.storage import Storage
+from zentray.core.scheduler import Scheduler
+from zentray.config import POLLING_INTERVAL_MS, POMODORO_MINUTES, DATA_DIR
 
 # ==========================================
 # 1. 底层跨平台托盘接口抽象
@@ -512,7 +512,7 @@ class TrayManager(QObject):
         task = self.scheduler.get_current()
         if not task:
             return
-        from gtd_ticker.ui.dialogs import ProgressDialog
+        from zentray.ui.dialogs import ProgressDialog
         dialog = ProgressDialog(task=task)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         
@@ -579,7 +579,7 @@ class TrayManager(QObject):
 
     def open_new_task_dialog(self):
         """启动创建任务模态框"""
-        from gtd_ticker.ui.dialogs import TaskDialog
+        from zentray.ui.dialogs import TaskDialog
         dialog = TaskDialog()
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         
@@ -597,7 +597,7 @@ class TrayManager(QObject):
             )
             
             if data["task_type"] == "periodic":
-                from gtd_ticker.core.models import PeriodicTemplate
+                from zentray.core.models import PeriodicTemplate
                 tmpl = PeriodicTemplate(
                     base_title=data["title"],
                     category=data["category"],
@@ -650,7 +650,7 @@ class TrayManager(QObject):
         task = self.scheduler.get_current()
         if not task:
             return
-        from gtd_ticker.ui.dialogs import TaskDialog
+        from zentray.ui.dialogs import TaskDialog
         dialog = TaskDialog(task=task)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         
@@ -681,7 +681,7 @@ class TrayManager(QObject):
         if not target_task:
             return
 
-        from gtd_ticker.ui.dialogs import TaskDialog
+        from zentray.ui.dialogs import TaskDialog
         dialog = TaskDialog(task=target_task)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         
@@ -739,7 +739,7 @@ class TrayManager(QObject):
         if not target_template:
             return
             
-        from gtd_ticker.ui.dialogs import TaskDialog
+        from zentray.ui.dialogs import TaskDialog
         dialog = TaskDialog(task=target_template)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         
@@ -773,7 +773,7 @@ class TrayManager(QObject):
 
     def show_notification(self, text):
         """暴露给外部 workers 的通知接口"""
-        self.backend.show_notification("GTD Ticker", text)
+        self.backend.show_notification("ZenTray", text)
 
     def show_task_action_dialog(self, task_id):
         # 查找任务
@@ -782,7 +782,7 @@ class TrayManager(QObject):
         if not task:
             return
             
-        from gtd_ticker.ui.dialogs import TaskActionDialog
+        from zentray.ui.dialogs import TaskActionDialog
         dialog = TaskActionDialog(task=task)
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowStaysOnTopHint)
         if dialog.exec():
@@ -796,7 +796,7 @@ class TrayManager(QObject):
             elif action == "abandon":
                 self.abandon_specific_task(task_id)
             elif action == "progress":
-                from gtd_ticker.ui.dialogs import ProgressDialog
+                from zentray.ui.dialogs import ProgressDialog
                 pd = ProgressDialog(task=task)
                 pd.setWindowFlags(pd.windowFlags() | Qt.WindowStaysOnTopHint)
                 if pd.exec():

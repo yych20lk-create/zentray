@@ -1,6 +1,6 @@
 import random
 from typing import List, Optional
-from gtd_ticker.core.models import Task
+from zentray.core.models import Task
 
 class Scheduler:
     """

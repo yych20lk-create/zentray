@@ -1,7 +1,7 @@
 import requests
 
 class NotificationClient:
-    """提供给极客看板或其他本地工具向移动端推送消息的轻量客户端"""
+    """提供给 ZenTray 或其他本地工具向移动端推送消息的轻量客户端"""
     def __init__(self, host: str = "127.0.0.1", port: int = 18330):
         self.url = f"http://{host}:{port}/send"
 

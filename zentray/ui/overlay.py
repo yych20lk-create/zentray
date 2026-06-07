@@ -2,8 +2,8 @@ import uuid
 import datetime
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLineEdit
 from PySide6.QtCore import Qt, Signal
-from gtd_ticker.core.models import Task
-from gtd_ticker.core.storage import Storage
+from zentray.core.models import Task
+from zentray.core.storage import Storage
 
 class QuickAddOverlay(QWidget):
     """

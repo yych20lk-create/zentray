@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 from platformdirs import user_data_dir
 
-APP_NAME = "GTDTicker"
-APP_AUTHOR = "GTD-Geek"
+APP_NAME = "ZenTray"
+APP_AUTHOR = "Zen-Geek"
 
 # 跨平台标准数据目录
 DATA_DIR = Path(user_data_dir(APP_NAME, APP_AUTHOR))
