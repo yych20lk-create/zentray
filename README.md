@@ -1,4 +1,4 @@
-# ZenTray 个人禅定看板 (v3.6)
+# mytodo_ticker (ZenTray)
 
 > 本项目已全面升维至 **跨平台架构 (Windows/macOS/Linux)**，是一款现代化的极致个人效率与专注工具。
 > - 在 **Linux (GNOME)** 环境下：采用独创的 **双进程原生桥接 (Native GTK Bridge)**，实现系统顶栏文字级原生无缝融合、状态栏自适应与完美的彩色进度圆饼图标渲染。
